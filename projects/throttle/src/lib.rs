@@ -3,10 +3,16 @@
 //! Every limiter takes a [`Clock`], so behaviour can be tested without sleeping.
 
 pub mod clock;
+mod fixed_window;
+mod sliding_log;
+mod token_bucket;
 
 use std::time::Duration;
 
 pub use clock::{Clock, ManualClock, SystemClock};
+pub use fixed_window::FixedWindow;
+pub use sliding_log::SlidingLog;
+pub use token_bucket::TokenBucket;
 
 /// The outcome of asking a limiter for permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
