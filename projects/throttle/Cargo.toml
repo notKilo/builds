@@ -1,0 +1,8 @@
+[package]
+name = "throttle"
+version = "0.1.0"
+edition = "2021"
+description = "Rate-limiting algorithms behind one trait, with injectable clocks"
+license = "MIT"
+
+[dependencies]

@@ -1,0 +1,19 @@
+name: throttle
+on:
+  push:
+    paths: ['projects/throttle/**', '.github/workflows/throttle.yml']
+  pull_request:
+    paths: ['projects/throttle/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/throttle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
