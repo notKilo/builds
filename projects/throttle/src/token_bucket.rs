@@ -19,7 +19,13 @@ impl<C: Clock> TokenBucket<C> {
         assert!(capacity > 0, "capacity must be positive");
         assert!(rate_per_sec > 0.0, "rate must be positive");
         let last = clock.now();
-        Self { clock, capacity: capacity as f64, rate_per_sec, tokens: capacity as f64, last }
+        Self {
+            clock,
+            capacity: capacity as f64,
+            rate_per_sec,
+            tokens: capacity as f64,
+            last,
+        }
     }
 
     fn refill(&mut self) {
@@ -34,7 +40,9 @@ impl<C: Clock> Limiter for TokenBucket<C> {
     fn try_acquire_n(&mut self, cost: u32) -> Decision {
         let cost = cost as f64;
         if cost > self.capacity {
-            return Decision::Denied { retry_after: Duration::MAX };
+            return Decision::Denied {
+                retry_after: Duration::MAX,
+            };
         }
         self.refill();
         if self.tokens >= cost {
@@ -42,7 +50,9 @@ impl<C: Clock> Limiter for TokenBucket<C> {
             Decision::Allowed
         } else {
             let wait = (cost - self.tokens) / self.rate_per_sec;
-            Decision::Denied { retry_after: Duration::from_secs_f64(wait) }
+            Decision::Denied {
+                retry_after: Duration::from_secs_f64(wait),
+            }
         }
     }
 }
@@ -71,7 +81,12 @@ mod tests {
         let clock = ManualClock::new();
         let mut b = bucket(&clock);
         b.try_acquire_n(5);
-        assert_eq!(b.try_acquire(), Decision::Denied { retry_after: Duration::from_millis(100) });
+        assert_eq!(
+            b.try_acquire(),
+            Decision::Denied {
+                retry_after: Duration::from_millis(100)
+            }
+        );
     }
 
     #[test]
@@ -100,6 +115,11 @@ mod tests {
     fn cost_above_capacity_is_never_allowed() {
         let clock = ManualClock::new();
         let mut b = bucket(&clock);
-        assert_eq!(b.try_acquire_n(6), Decision::Denied { retry_after: Duration::MAX });
+        assert_eq!(
+            b.try_acquire_n(6),
+            Decision::Denied {
+                retry_after: Duration::MAX
+            }
+        );
     }
 }

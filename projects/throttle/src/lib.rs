@@ -5,6 +5,7 @@
 pub mod clock;
 mod fixed_window;
 mod gcra;
+mod keyed;
 mod sliding_counter;
 mod sliding_log;
 mod token_bucket;
@@ -14,6 +15,7 @@ use std::time::Duration;
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use fixed_window::FixedWindow;
 pub use gcra::Gcra;
+pub use keyed::Keyed;
 pub use sliding_counter::SlidingCounter;
 pub use sliding_log::SlidingLog;
 pub use token_bucket::TokenBucket;
@@ -23,7 +25,9 @@ pub use token_bucket::TokenBucket;
 pub enum Decision {
     Allowed,
     /// Denied; the same request may succeed after `retry_after`.
-    Denied { retry_after: Duration },
+    Denied {
+        retry_after: Duration,
+    },
 }
 
 impl Decision {

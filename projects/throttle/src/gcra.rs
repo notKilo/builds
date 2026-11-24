@@ -19,14 +19,21 @@ impl<C: Clock> Gcra<C> {
         assert!(rate_per_sec > 0.0, "rate must be positive");
         assert!(burst > 0, "burst must be positive");
         let tat = clock.now();
-        Self { clock, interval: Duration::from_secs_f64(1.0 / rate_per_sec), burst, tat }
+        Self {
+            clock,
+            interval: Duration::from_secs_f64(1.0 / rate_per_sec),
+            burst,
+            tat,
+        }
     }
 }
 
 impl<C: Clock> Limiter for Gcra<C> {
     fn try_acquire_n(&mut self, cost: u32) -> Decision {
         if cost > self.burst {
-            return Decision::Denied { retry_after: Duration::MAX };
+            return Decision::Denied {
+                retry_after: Duration::MAX,
+            };
         }
         let now = self.clock.now();
         let new_tat = self.tat.max(now) + self.interval * cost;
@@ -35,7 +42,9 @@ impl<C: Clock> Limiter for Gcra<C> {
             self.tat = new_tat;
             Decision::Allowed
         } else {
-            Decision::Denied { retry_after: allow_at - now }
+            Decision::Denied {
+                retry_after: allow_at - now,
+            }
         }
     }
 }
@@ -52,7 +61,12 @@ mod tests {
         for _ in 0..5 {
             assert!(g.try_acquire().is_allowed());
         }
-        assert_eq!(g.try_acquire(), Decision::Denied { retry_after: Duration::from_millis(100) });
+        assert_eq!(
+            g.try_acquire(),
+            Decision::Denied {
+                retry_after: Duration::from_millis(100)
+            }
+        );
     }
 
     #[test]
@@ -88,7 +102,10 @@ mod tests {
             let cost = 1 + (x >> 20) % 3;
             c1.advance(gap);
             c2.advance(gap);
-            assert_eq!(g.try_acquire_n(cost).is_allowed(), t.try_acquire_n(cost).is_allowed());
+            assert_eq!(
+                g.try_acquire_n(cost).is_allowed(),
+                t.try_acquire_n(cost).is_allowed()
+            );
         }
     }
 
@@ -96,6 +113,11 @@ mod tests {
     fn oversized_request_is_never_allowed() {
         let clock = ManualClock::new();
         let mut g = Gcra::new(clock.clone(), 10.0, 5);
-        assert_eq!(g.try_acquire_n(6), Decision::Denied { retry_after: Duration::MAX });
+        assert_eq!(
+            g.try_acquire_n(6),
+            Decision::Denied {
+                retry_after: Duration::MAX
+            }
+        );
     }
 }

@@ -17,14 +17,22 @@ impl<C: Clock> FixedWindow<C> {
     pub fn new(clock: C, limit: u32, window: Duration) -> Self {
         assert!(limit > 0, "limit must be positive");
         assert!(!window.is_zero(), "window must be non-zero");
-        Self { clock, limit, window, current: 0, used: 0 }
+        Self {
+            clock,
+            limit,
+            window,
+            current: 0,
+            used: 0,
+        }
     }
 }
 
 impl<C: Clock> Limiter for FixedWindow<C> {
     fn try_acquire_n(&mut self, cost: u32) -> Decision {
         if cost > self.limit {
-            return Decision::Denied { retry_after: Duration::MAX };
+            return Decision::Denied {
+                retry_after: Duration::MAX,
+            };
         }
         let now = self.clock.now();
         let index = now.as_nanos() / self.window.as_nanos();
@@ -53,7 +61,12 @@ mod tests {
         let clock = ManualClock::new();
         let mut w = FixedWindow::new(clock.clone(), 3, Duration::from_secs(10));
         assert!(w.try_acquire_n(3).is_allowed());
-        assert_eq!(w.try_acquire(), Decision::Denied { retry_after: Duration::from_secs(10) });
+        assert_eq!(
+            w.try_acquire(),
+            Decision::Denied {
+                retry_after: Duration::from_secs(10)
+            }
+        );
     }
 
     #[test]
@@ -62,7 +75,12 @@ mod tests {
         let mut w = FixedWindow::new(clock.clone(), 2, Duration::from_secs(10));
         clock.advance(Duration::from_secs(9));
         assert!(w.try_acquire_n(2).is_allowed());
-        assert_eq!(w.try_acquire(), Decision::Denied { retry_after: Duration::from_secs(1) });
+        assert_eq!(
+            w.try_acquire(),
+            Decision::Denied {
+                retry_after: Duration::from_secs(1)
+            }
+        );
         clock.advance(Duration::from_secs(1));
         assert!(w.try_acquire().is_allowed());
     }

@@ -18,7 +18,13 @@ impl<C: Clock> SlidingLog<C> {
     pub fn new(clock: C, limit: u32, window: Duration) -> Self {
         assert!(limit > 0, "limit must be positive");
         assert!(!window.is_zero(), "window must be non-zero");
-        Self { clock, limit, window, entries: VecDeque::new(), used: 0 }
+        Self {
+            clock,
+            limit,
+            window,
+            entries: VecDeque::new(),
+            used: 0,
+        }
     }
 
     fn evict(&mut self, now: Duration) {
@@ -36,7 +42,9 @@ impl<C: Clock> SlidingLog<C> {
 impl<C: Clock> Limiter for SlidingLog<C> {
     fn try_acquire_n(&mut self, cost: u32) -> Decision {
         if cost > self.limit {
-            return Decision::Denied { retry_after: Duration::MAX };
+            return Decision::Denied {
+                retry_after: Duration::MAX,
+            };
         }
         let now = self.clock.now();
         self.evict(now);
@@ -50,7 +58,9 @@ impl<C: Clock> Limiter for SlidingLog<C> {
         for &(at, c) in &self.entries {
             freed += c;
             if self.used - freed + cost <= self.limit {
-                return Decision::Denied { retry_after: (at + self.window) - now };
+                return Decision::Denied {
+                    retry_after: (at + self.window) - now,
+                };
             }
         }
         unreachable!("cost <= limit, so expiring every entry always makes room")
@@ -80,7 +90,12 @@ mod tests {
         assert!(l.try_acquire().is_allowed());
         clock.advance(Duration::from_secs(4));
         assert!(l.try_acquire().is_allowed());
-        assert_eq!(l.try_acquire(), Decision::Denied { retry_after: Duration::from_secs(6) });
+        assert_eq!(
+            l.try_acquire(),
+            Decision::Denied {
+                retry_after: Duration::from_secs(6)
+            }
+        );
     }
 
     #[test]
@@ -104,6 +119,11 @@ mod tests {
         l.try_acquire_n(3);
         // Needs 2 free; the first entry (1 unit) expiring is not enough, so the
         // wait runs until the second entry (admitted at t=2s) expires at t=12s.
-        assert_eq!(l.try_acquire_n(2), Decision::Denied { retry_after: Duration::from_secs(10) });
+        assert_eq!(
+            l.try_acquire_n(2),
+            Decision::Denied {
+                retry_after: Duration::from_secs(10)
+            }
+        );
     }
 }
