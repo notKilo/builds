@@ -43,4 +43,5 @@ def audit_repo(root: Path, index: AdvisoryIndex, policy: Policy, license_map=Non
 
 def filter_severity(findings: list[Finding], minimum: str) -> list[Finding]:
     floor = SEVERITIES.index(minimum)
-    return [f for f in findings if SEVERITIES.index(f.severity) >= floor]
+    # License violations are policy failures, not graded, so they always pass.
+    return [f for f in findings if f.kind == "license" or SEVERITIES.index(f.severity) >= floor]

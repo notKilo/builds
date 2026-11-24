@@ -1,0 +1,11 @@
+[
+  {"id": "SAMPLE-0001", "ecosystem": "PyPI", "package": "requests", "severity": "medium",
+   "summary": "Sample advisory for old requests releases",
+   "ranges": [{"introduced": "2.0.0", "fixed": "2.20.0"}]},
+  {"id": "SAMPLE-0002", "ecosystem": "npm", "package": "lodash", "severity": "high",
+   "summary": "Sample prototype pollution advisory",
+   "ranges": [{"fixed": "4.17.21"}]},
+  {"id": "SAMPLE-0003", "ecosystem": "crates.io", "package": "smallvec", "severity": "critical",
+   "summary": "Sample memory-safety advisory",
+   "ranges": [{"introduced": "0.6.0", "fixed": "0.6.14"}]}
+]
