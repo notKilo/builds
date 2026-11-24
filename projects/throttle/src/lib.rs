@@ -4,6 +4,8 @@
 
 pub mod clock;
 mod fixed_window;
+mod gcra;
+mod sliding_counter;
 mod sliding_log;
 mod token_bucket;
 
@@ -11,6 +13,8 @@ use std::time::Duration;
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use fixed_window::FixedWindow;
+pub use gcra::Gcra;
+pub use sliding_counter::SlidingCounter;
 pub use sliding_log::SlidingLog;
 pub use token_bucket::TokenBucket;
 
