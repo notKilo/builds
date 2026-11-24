@@ -26,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _resolve(name: str, base: Path) -> Path:
+    path = Path(name)
+    return path if path.is_absolute() else base / path
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = Path(args.path)
@@ -40,10 +45,16 @@ def main(argv: list[str] | None = None) -> int:
             bundled = resources.files("depaudit") / "data" / "advisories.json"
             with resources.as_file(bundled) as f:
                 advisories += load_advisories(f)
-        for name in [*cfg.advisories, *args.advisories]:
-            advisories += load_advisories(Path(name) if Path(name).is_absolute() or name in args.advisories else root / name)
-        map_path = args.license_map or cfg.license_map
-        license_map = load_license_map(Path(map_path)) if map_path else None
+        # Paths from the config file are relative to the audited repo; CLI paths to the cwd.
+        paths = [_resolve(n, root) for n in cfg.advisories] + [Path(n) for n in args.advisories]
+        for path in paths:
+            advisories += load_advisories(path)
+        if args.license_map:
+            license_map = load_license_map(Path(args.license_map))
+        elif cfg.license_map:
+            license_map = load_license_map(_resolve(cfg.license_map, root))
+        else:
+            license_map = None
     except (OSError, ValueError, KeyError) as e:
         print(f"depaudit: {e}", file=sys.stderr)
         return 2

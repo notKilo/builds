@@ -42,3 +42,19 @@ def test_config_file_deny_license(tmp_path, capsys):
 
 def test_bad_path(capsys):
     assert main(["/definitely/not/here"]) == 2
+
+
+def test_config_relative_paths_resolve_against_repo(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("foo==1.0.0\n")
+    (repo / "adv.json").write_text(json.dumps([
+        {"id": "X-1", "ecosystem": "PyPI", "package": "foo", "severity": "high",
+         "summary": "bad foo", "ranges": [{"fixed": "2.0.0"}]}]))
+    (repo / "licenses.json").write_text(json.dumps({"PyPI:foo": "GPL-3.0-only"}))
+    (repo / ".depaudit.toml").write_text(
+        '[advisories]\nfiles = ["adv.json"]\n[licenses]\nmap = "licenses.json"\ndeny = ["GPL-3.0-only"]\n')
+    monkeypatch.chdir(tmp_path)  # cwd differs from the repo root
+    assert main(["repo", "--format", "json", "--no-bundled"]) == 1
+    kinds = {f["type"] for f in json.loads(capsys.readouterr().out)["findings"]}
+    assert kinds == {"vulnerability", "license"}
