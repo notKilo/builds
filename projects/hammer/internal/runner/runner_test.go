@@ -78,3 +78,40 @@ func TestRunCountsErrors(t *testing.T) {
 		t.Fatalf("total=%d errors=%v", res.Total, res.Errors)
 	}
 }
+
+func TestRunCancelStopsEarly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Millisecond)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+	start := time.Now()
+	res := Run(ctx, Config{URL: srv.URL, Concurrency: 4, Requests: 1_000_000})
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("Run did not return promptly after cancel")
+	}
+	if res.Total == 0 || res.Total >= 1_000_000 {
+		t.Errorf("unexpected total %d", res.Total)
+	}
+}
+
+func TestRunTimeoutCountsAsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+	}))
+	defer srv.Close()
+
+	res := Run(context.Background(), Config{URL: srv.URL, Concurrency: 2, Requests: 2, Timeout: 50 * time.Millisecond})
+	n := 0
+	for _, c := range res.Errors {
+		n += c
+	}
+	if n != 2 || res.Total != 2 || len(res.Statuses) != 0 {
+		t.Errorf("errors=%v total=%d statuses=%v", res.Errors, res.Total, res.Statuses)
+	}
+}
