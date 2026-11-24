@@ -1,0 +1,19 @@
+name: hammer
+on:
+  push:
+    paths: ['projects/hammer/**', '.github/workflows/hammer.yml']
+  pull_request:
+    paths: ['projects/hammer/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/hammer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - run: go vet ./...
+      - run: go test -race ./...
