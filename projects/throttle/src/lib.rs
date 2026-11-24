@@ -2,20 +2,24 @@
 //!
 //! Every limiter takes a [`Clock`], so behaviour can be tested without sleeping.
 
+mod atomic_gcra;
 pub mod clock;
 mod fixed_window;
 mod gcra;
 mod keyed;
+mod shared;
 mod sliding_counter;
 mod sliding_log;
 mod token_bucket;
 
 use std::time::Duration;
 
+pub use atomic_gcra::AtomicGcra;
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use fixed_window::FixedWindow;
 pub use gcra::Gcra;
 pub use keyed::Keyed;
+pub use shared::Shared;
 pub use sliding_counter::SlidingCounter;
 pub use sliding_log::SlidingLog;
 pub use token_bucket::TokenBucket;
