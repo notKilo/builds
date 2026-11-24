@@ -8,6 +8,7 @@ mod fixed_window;
 mod gcra;
 mod keyed;
 mod shared;
+pub mod sim;
 mod sliding_counter;
 mod sliding_log;
 mod token_bucket;
