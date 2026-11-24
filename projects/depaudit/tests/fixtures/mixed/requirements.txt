@@ -1,0 +1,3 @@
+requests==2.5.0
+flask==3.0.0  # web
+numpy>=1.0
