@@ -3,4 +3,4 @@ Ongoing software projects, one per folder.
 
 | Project | Status | Description |
 |---|---|---|
-| [hammer](projects/hammer) | Active | Tiny HTTP load tester in Go with latency histograms |
+| [hammer](projects/hammer) | Done | Tiny HTTP load tester in Go with latency histograms |
