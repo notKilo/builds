@@ -2,6 +2,7 @@
 //! spawning a process.
 
 use crate::asm::assemble;
+use crate::debugger::Debugger;
 use crate::disasm::{disassemble, from_image, to_image};
 use crate::opcode::Op;
 use crate::vm::Vm;
@@ -11,7 +12,8 @@ use std::io::Write;
 pub const USAGE: &str = "usage:
   tinyvm run <file.asm|file.tvm> [--max-steps N]
   tinyvm asm <input.asm> -o <output.tvm>
-  tinyvm disasm <file.tvm>";
+  tinyvm disasm <file.tvm>
+  tinyvm debug <file.asm|file.tvm>";
 
 pub const DEFAULT_MAX_STEPS: u64 = 10_000_000;
 
@@ -41,6 +43,7 @@ pub fn run_cli(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
         "run" => cmd_run(rest, out),
         "asm" => cmd_asm(rest),
         "disasm" => cmd_disasm(rest, out),
+        "debug" => cmd_debug(rest, out),
         "-h" | "--help" | "help" => {
             let _ = writeln!(out, "{USAGE}");
             return EXIT_OK;
@@ -97,6 +100,16 @@ fn cmd_run(args: &[String], out: &mut dyn Write) -> Result<(), CliError> {
         writeln!(out, "{v}").map_err(|e| CliError::Failed(e.to_string()))?;
     }
     result.map_err(|e| CliError::Failed(e.to_string()))
+}
+
+fn cmd_debug(args: &[String], out: &mut dyn Write) -> Result<(), CliError> {
+    let [path] = args else {
+        return Err(CliError::Usage("debug <file>".into()));
+    };
+    let mut dbg = Debugger::new(Vm::new(load_program(path)?));
+    let stdin = std::io::stdin();
+    dbg.repl(&mut stdin.lock(), out)
+        .map_err(|e| CliError::Failed(e.to_string()))
 }
 
 fn cmd_asm(args: &[String]) -> Result<(), CliError> {
