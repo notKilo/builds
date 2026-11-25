@@ -12,6 +12,7 @@ pub mod dfa;
 pub mod nfa;
 pub mod parser;
 pub mod pike;
+pub mod trace;
 
 pub use parser::{parse, ParseError};
 

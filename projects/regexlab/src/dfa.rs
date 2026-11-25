@@ -106,7 +106,7 @@ impl<'p> Dfa<'p> {
 }
 
 /// Epsilon closure of `kernel`, returning consuming instructions and `Match`.
-fn closure(prog: &Program, kernel: &[usize], at_start: bool, at_end: bool) -> Vec<usize> {
+pub(crate) fn closure(prog: &Program, kernel: &[usize], at_start: bool, at_end: bool) -> Vec<usize> {
     let mut seen = vec![false; prog.insts.len()];
     let mut out = Vec::new();
     let mut stack: Vec<usize> = kernel.iter().rev().copied().collect();
