@@ -220,6 +220,11 @@ func (s *Store) Delete(key []byte) error {
 // append writes rec to the active segment. The caller holds s.mu.
 func (s *Store) append(rec record) (entry, error) {
 	buf := rec.encode()
+	if s.actLen > 0 && s.actLen+int64(len(buf)) > s.opts.MaxSegmentSize {
+		if err := s.roll(); err != nil {
+			return entry{}, err
+		}
+	}
 	if _, err := s.active.WriteAt(buf, s.actLen); err != nil {
 		return entry{}, err
 	}
@@ -231,6 +236,14 @@ func (s *Store) append(rec record) (entry, error) {
 	e := entry{seg: s.actID, off: s.actLen, size: len(buf)}
 	s.actLen += int64(len(buf))
 	return e, nil
+}
+
+// roll syncs the active segment and starts a new one. The caller holds s.mu.
+func (s *Store) roll() error {
+	if err := s.active.Sync(); err != nil {
+		return err
+	}
+	return s.newActive(s.actID + 1)
 }
 
 // Get returns a copy of the value stored under key.
