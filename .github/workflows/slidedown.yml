@@ -1,0 +1,20 @@
+name: slidedown
+on:
+  push:
+    paths: ['projects/slidedown/**', '.github/workflows/slidedown.yml']
+  pull_request:
+    paths: ['projects/slidedown/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/slidedown
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test

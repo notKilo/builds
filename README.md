@@ -10,3 +10,4 @@ Ongoing software projects, one per folder.
 | [kvlite](projects/kvlite) | Done | Go log-structured key-value store with crash recovery, compaction and a CLI |
 | [regexlab](projects/regexlab) | Done | Rust regex engine (NFA, Pike VM, lazy DFA) with a step-through trace CLI |
 | [cronwhy](projects/cronwhy) | Done | Python cron expression explainer and next-run simulator with DST handling, CLI and web UI |
+| [slidedown](projects/slidedown) | Done | TypeScript Markdown-to-slides tool with themes, speaker notes, live reload and PDF export |
