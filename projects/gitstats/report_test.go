@@ -93,3 +93,23 @@ func TestEmptyReport(t *testing.T) {
 		t.Fatal(buf.String())
 	}
 }
+
+func TestWriteHTMLEscapesAndRenders(t *testing.T) {
+	cs := []Commit{commit("a@x", 1, FileChange{Path: "<b>x</b>.go", Added: 3})}
+	cs[0].Author = "A <script>"
+	var buf bytes.Buffer
+	if err := Build(cs, Options{Now: t0}).WriteHTML(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "<script>") || strings.Contains(out, "<b>x</b>") {
+		t.Fatalf("unescaped content:\n%s", out)
+	}
+	if !strings.Contains(out, "&lt;b&gt;x&lt;/b&gt;.go") || !strings.Contains(out, "1 commits") {
+		t.Fatalf("missing content:\n%s", out)
+	}
+	buf.Reset()
+	if err := Build(nil, Options{}).WriteHTML(&buf); err != nil {
+		t.Fatal(err)
+	}
+}

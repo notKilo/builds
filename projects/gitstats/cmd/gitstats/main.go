@@ -25,12 +25,12 @@ func run(args []string, out *os.File) error {
 	top := fs.Int("top", 10, "rows per section (0 = all)")
 	depth := fs.Int("depth", 1, "directory depth for bus factor")
 	halfLife := fs.Int("half-life", 90, "hotspot recency half-life in days")
-	format := fs.String("format", "text", "output format: text or json")
+	format := fs.String("format", "text", "output format: text, json or html")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *format != "text" && *format != "json" {
-		return fmt.Errorf("unknown format %q (want text or json)", *format)
+	if *format != "text" && *format != "json" && *format != "html" {
+		return fmt.Errorf("unknown format %q (want text, json or html)", *format)
 	}
 	commits, err := gitstats.LoadRepo(*repo, *since, *path)
 	if err != nil {
@@ -39,8 +39,11 @@ func run(args []string, out *os.File) error {
 	rep := gitstats.Build(commits, gitstats.Options{
 		Top: *top, Depth: *depth, HalfLife: time.Duration(*halfLife) * 24 * time.Hour,
 	})
-	if *format == "json" {
+	switch *format {
+	case "json":
 		return rep.WriteJSON(out)
+	case "html":
+		return rep.WriteHTML(out)
 	}
 	return rep.WriteText(out)
 }
