@@ -1,0 +1,19 @@
+name: regexlab
+on:
+  push:
+    paths: ['projects/regexlab/**', '.github/workflows/regexlab.yml']
+  pull_request:
+    paths: ['projects/regexlab/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/regexlab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

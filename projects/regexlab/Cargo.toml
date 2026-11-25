@@ -1,0 +1,8 @@
+[package]
+name = "regexlab"
+version = "0.1.0"
+edition = "2021"
+description = "A from-scratch regex engine with a step-through visualizer"
+license = "MIT"
+
+[dependencies]
