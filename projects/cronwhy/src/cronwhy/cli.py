@@ -24,11 +24,18 @@ def build_parser() -> argparse.ArgumentParser:
             s.add_argument("-n", "--count", type=int, default=5)
             s.add_argument("--tz", default="UTC", help="IANA timezone, default UTC")
             s.add_argument("--from", dest="start", help="start time, ISO 8601 (default: now)")
+    w = sub.add_parser("serve", help="run the web UI")
+    w.add_argument("--host", default="127.0.0.1")
+    w.add_argument("--port", type=int, default=8000)
     return p
 
 
 def main(argv: list[str] | None = None, now: datetime | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.cmd == "serve":
+        from .web import serve
+        serve(args.host, args.port)
+        return 0
     try:
         expr = parse(args.expr)
         if args.cmd == "check":
