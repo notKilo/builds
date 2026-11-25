@@ -1,0 +1,19 @@
+name: tinyvm
+on:
+  push:
+    paths: ['projects/tinyvm/**', '.github/workflows/tinyvm.yml']
+  pull_request:
+    paths: ['projects/tinyvm/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/tinyvm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
