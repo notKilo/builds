@@ -4,10 +4,12 @@ import { parseArgs } from "node:util";
 import { parseDeck } from "./deck.ts";
 import { renderDeckHtml } from "./template.ts";
 import { startServer } from "./server.ts";
+import { exportPdf } from "./pdf.ts";
 
 const USAGE = `usage:
   slidedown build <deck.md> [-o out.html]
   slidedown serve <deck.md> [-p port]
+  slidedown pdf <deck.md> [-o out.pdf]   (needs playwright)
 `;
 
 async function main(argv: string[]): Promise<number> {
@@ -17,7 +19,7 @@ async function main(argv: string[]): Promise<number> {
     options: { out: { type: "string", short: "o" }, port: { type: "string", short: "p", default: "3000" } },
   });
   const [cmd, file] = positionals;
-  if (!file || (cmd !== "build" && cmd !== "serve")) {
+  if (!file || (cmd !== "build" && cmd !== "serve" && cmd !== "pdf")) {
     process.stderr.write(USAGE);
     return 2;
   }
@@ -30,6 +32,12 @@ async function main(argv: string[]): Promise<number> {
   if (cmd === "build") {
     const out = values.out ?? file.replace(/\.md$/i, "") + ".html";
     writeFileSync(out, renderDeckHtml(parseDeck(readFileSync(file, "utf8"))));
+    process.stdout.write(`wrote ${out}\n`);
+    return 0;
+  }
+  if (cmd === "pdf") {
+    const out = values.out ?? file.replace(/\.md$/i, "") + ".pdf";
+    await exportPdf(readFileSync(file, "utf8"), out);
     process.stdout.write(`wrote ${out}\n`);
     return 0;
   }
