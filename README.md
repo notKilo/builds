@@ -11,3 +11,4 @@ Ongoing software projects, one per folder.
 | [regexlab](projects/regexlab) | Done | Rust regex engine (NFA, Pike VM, lazy DFA) with a step-through trace CLI |
 | [cronwhy](projects/cronwhy) | Done | Python cron expression explainer and next-run simulator with DST handling, CLI and web UI |
 | [slidedown](projects/slidedown) | Done | TypeScript Markdown-to-slides tool with themes, speaker notes, live reload and PDF export |
+| [gitstats](projects/gitstats) | Done | Go CLI mining git history for churn, hotspots, bus factor and authors, with text, JSON and HTML output |
