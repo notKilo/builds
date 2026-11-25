@@ -1,0 +1,8 @@
+[package]
+name = "tinyvm"
+version = "0.1.0"
+edition = "2021"
+description = "A small stack-based bytecode VM with an assembler and debugger"
+license = "MIT"
+
+[dependencies]
