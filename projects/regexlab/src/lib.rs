@@ -8,6 +8,7 @@
 //! ```
 
 pub mod ast;
+pub mod dfa;
 pub mod nfa;
 pub mod parser;
 pub mod pike;
@@ -59,6 +60,12 @@ impl Regex {
 
     pub fn is_match(&self, haystack: &str) -> bool {
         self.find(haystack).is_some()
+    }
+
+    /// Yes/no matching through a lazily built DFA. Faster than `is_match` on
+    /// long inputs because no per-thread capture state is carried.
+    pub fn is_match_dfa(&self, haystack: &str) -> bool {
+        dfa::Dfa::new(&self.prog).is_match(haystack)
     }
 
     /// Leftmost-first match as a byte range.
