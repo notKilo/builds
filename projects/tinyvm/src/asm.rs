@@ -4,7 +4,9 @@
 //!   ; comment
 //!   .const NAME 10     named constant, usable as a push operand
 //!   label:             marks the next instruction (may share a line with it)
-//!   push 5 / jmp label / add ...
+//!   push 5 / jmp label / call label / add ...
+//!   lload 0 / lstore 0     local slots (constants allowed as slot numbers)
+//!   load / store           memory access, address on top of the stack
 
 use crate::opcode::Op;
 use std::collections::HashMap;
@@ -25,7 +27,10 @@ impl fmt::Display for AsmError {
 impl std::error::Error for AsmError {}
 
 fn err<T>(line: usize, message: impl Into<String>) -> Result<T, AsmError> {
-    Err(AsmError { line, message: message.into() })
+    Err(AsmError {
+        line,
+        message: message.into(),
+    })
 }
 
 /// A parsed statement whose jump target may still be a label name.
@@ -84,11 +89,18 @@ pub fn assemble(source: &str) -> Result<Vec<Op>, AsmError> {
         if parts.len() > 2 {
             return err(line, format!("too many operands for '{}'", parts[0]));
         }
-        pending.push(Pending { line, mnemonic: parts[0], operand: parts.get(1).copied() });
+        pending.push(Pending {
+            line,
+            mnemonic: parts[0],
+            operand: parts.get(1).copied(),
+        });
     }
 
     // Pass 2: resolve operands.
-    pending.iter().map(|p| resolve(p, &labels, &consts)).collect()
+    pending
+        .iter()
+        .map(|p| resolve(p, &labels, &consts))
+        .collect()
 }
 
 fn resolve(
@@ -116,6 +128,17 @@ fn resolve(
         }
     };
 
+    let slot = || -> Result<usize, AsmError> {
+        let text = operand()?;
+        let value = match consts.get(text) {
+            Some(&v) => v,
+            None => text
+                .parse::<i64>()
+                .or_else(|_| err(line, format!("invalid slot '{text}'")))?,
+        };
+        usize::try_from(value).or_else(|_| err(line, format!("slot must not be negative: {value}")))
+    };
+
     match mnemonic.as_str() {
         "push" => {
             let text = operand()?;
@@ -131,6 +154,12 @@ fn resolve(
         "jmp" => Ok(Op::Jmp(target()?)),
         "jz" => Ok(Op::Jz(target()?)),
         "jnz" => Ok(Op::Jnz(target()?)),
+        "call" => Ok(Op::Call(target()?)),
+        "lload" => Ok(Op::LoadLocal(slot()?)),
+        "lstore" => Ok(Op::StoreLocal(slot()?)),
+        "ret" => no_operand(Op::Ret),
+        "load" => no_operand(Op::Load),
+        "store" => no_operand(Op::Store),
         "pop" => no_operand(Op::Pop),
         "dup" => no_operand(Op::Dup),
         "swap" => no_operand(Op::Swap),
@@ -194,7 +223,10 @@ mod tests {
     #[test]
     fn reports_errors_with_line_numbers() {
         let e = assemble("push 1\n\nbogus").unwrap_err();
-        assert_eq!((e.line, e.message.as_str()), (3, "unknown instruction 'bogus'"));
+        assert_eq!(
+            (e.line, e.message.as_str()),
+            (3, "unknown instruction 'bogus'")
+        );
 
         let e = assemble("jmp nowhere").unwrap_err();
         assert_eq!(e.message, "undefined label 'nowhere'");
@@ -202,13 +234,74 @@ mod tests {
         let e = assemble("a: halt\na: halt").unwrap_err();
         assert_eq!((e.line, e.message.as_str()), (2, "duplicate label 'a'"));
 
-        assert_eq!(assemble("push").unwrap_err().message, "'push' needs an operand");
-        assert_eq!(assemble("add 1").unwrap_err().message, "'add' takes no operand");
+        assert_eq!(
+            assemble("push").unwrap_err().message,
+            "'push' needs an operand"
+        );
+        assert_eq!(
+            assemble("add 1").unwrap_err().message,
+            "'add' takes no operand"
+        );
         assert_eq!(
             assemble("push 1 2").unwrap_err().message,
             "too many operands for 'push'"
         );
-        assert_eq!(assemble("push abc").unwrap_err().message, "invalid number or constant 'abc'");
+        assert_eq!(
+            assemble("push abc").unwrap_err().message,
+            "invalid number or constant 'abc'"
+        );
+    }
+
+    #[test]
+    fn assembles_recursive_factorial() {
+        let src = "
+            push 6
+            call fact
+            print
+            halt
+            fact:   lstore 0
+                    lload 0
+                    push 2
+                    lt
+                    jnz base
+                    lload 0
+                    lload 0
+                    push 1
+                    sub
+                    call fact
+                    mul
+                    ret
+            base:   push 1
+                    ret
+        ";
+        let mut vm = Vm::new(assemble(src).unwrap());
+        vm.run(10_000).unwrap();
+        assert_eq!(vm.output, vec![720]);
+    }
+
+    #[test]
+    fn memory_and_slot_constants() {
+        let src = ".const COUNTER 5\npush 9\npush COUNTER\nstore\npush COUNTER\nload\nlstore 2\nlload 2\nprint";
+        let mut vm = Vm::new(assemble(src).unwrap());
+        vm.run(100).unwrap();
+        assert_eq!(vm.output, vec![9]);
+    }
+
+    #[test]
+    fn rejects_bad_slots_and_call_targets() {
+        assert_eq!(
+            assemble("lload -1").unwrap_err().message,
+            "slot must not be negative: -1"
+        );
+        assert_eq!(assemble("lload x").unwrap_err().message, "invalid slot 'x'");
+        assert_eq!(
+            assemble("call nope").unwrap_err().message,
+            "undefined label 'nope'"
+        );
+        assert_eq!(
+            assemble("ret 1").unwrap_err().message,
+            "'ret' takes no operand"
+        );
     }
 
     #[test]
