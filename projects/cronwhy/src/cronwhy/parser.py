@@ -48,7 +48,8 @@ class Field:
 
     @property
     def full(self) -> bool:
-        return len(self.values) == self.spec.hi - self.spec.lo + 1
+        hi = 6 if self.spec.name == "day of week" else self.spec.hi
+        return len(self.values) == hi - self.spec.lo + 1
 
 
 @dataclass(frozen=True)
