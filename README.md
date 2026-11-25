@@ -13,3 +13,4 @@ Ongoing software projects, one per folder.
 | [slidedown](projects/slidedown) | Done | TypeScript Markdown-to-slides tool with themes, speaker notes, live reload and PDF export |
 | [gitstats](projects/gitstats) | Done | Go CLI mining git history for churn, hotspots, bus factor and authors, with text, JSON and HTML output |
 | [tinyvm](projects/tinyvm) | Done | Rust stack-based bytecode VM with assembler, disassembler, binary format and step debugger |
+| [diffsheet](projects/diffsheet) | Done | Python semantic diff for CSV/JSON tables keyed by columns, with text, markdown, JSON and HTML output |
