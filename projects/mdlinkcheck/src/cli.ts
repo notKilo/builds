@@ -5,6 +5,7 @@ import { UrlCache } from "./cache.ts";
 import { defaultHttpOptions } from "./http.ts";
 import { format, type Format } from "./report.ts";
 import { run } from "./run.ts";
+import { loadConfig, type Config } from "./config.ts";
 
 const HELP = `Usage: mdlinkcheck [options] <file|dir>...
 
@@ -21,7 +22,13 @@ Options:
       --root <dir>                base for /absolute links (default: cwd)
       --strict                    exit 1 on warnings too
       --ci                        shorthand for --external --strict --no-cache
+      --config <path>             config file (default: ./.mdlinkcheck.json if present)
+      --ignore-path <glob>        skip matching files, relative to --root (repeatable)
+      --ignore-url <prefix>       skip URLs with this prefix (repeatable)
   -h, --help
+
+Config keys (CLI flags win): ignorePaths, ignoreUrls, format, external, strict,
+timeout, concurrency, cacheTtl.
 
 Exit codes: 0 clean, 1 problems found, 2 usage error.
 `;
@@ -40,7 +47,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       args: argv,
       allowPositionals: true,
       options: {
-        format: { type: "string", short: "f", default: "text" },
+        format: { type: "string", short: "f" },
         external: { type: "boolean", short: "e", default: false },
         timeout: { type: "string" },
         concurrency: { type: "string" },
@@ -50,6 +57,9 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         root: { type: "string" },
         strict: { type: "boolean", default: false },
         ci: { type: "boolean", default: false },
+        config: { type: "string" },
+        "ignore-path": { type: "string", multiple: true },
+        "ignore-url": { type: "string", multiple: true },
         help: { type: "boolean", short: "h", default: false },
       },
     });
@@ -66,8 +76,16 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     io.err(`No input paths given.\n\n${HELP}`);
     return 2;
   }
-  if (!["text", "json", "sarif"].includes(values.format!)) {
-    io.err(`Unknown format: ${values.format}\n`);
+  let config: Config;
+  try {
+    config = await loadConfig(process.cwd(), values.config);
+  } catch (err) {
+    io.err(`${(err as Error).message}\n`);
+    return 2;
+  }
+  const fmt = values.format ?? config.format ?? "text";
+  if (!["text", "json", "sarif"].includes(fmt)) {
+    io.err(`Unknown format: ${fmt}\n`);
     return 2;
   }
   const num = (v: string | undefined, fallback: number, name: string): number | null => {
@@ -79,14 +97,14 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     }
     return n;
   };
-  const timeoutMs = num(values.timeout, defaultHttpOptions.timeoutMs, "timeout");
-  const concurrency = num(values.concurrency, defaultHttpOptions.concurrency, "concurrency");
-  const ttlHours = num(values["cache-ttl"], 24, "cache-ttl");
+  const timeoutMs = num(values.timeout, config.timeout ?? defaultHttpOptions.timeoutMs, "timeout");
+  const concurrency = num(values.concurrency, config.concurrency ?? defaultHttpOptions.concurrency, "concurrency");
+  const ttlHours = num(values["cache-ttl"], config.cacheTtl ?? 24, "cache-ttl");
   if (timeoutMs === null || concurrency === null || ttlHours === null) return 2;
 
   const ci = values.ci!;
-  const external = values.external! || ci;
-  const strict = values.strict! || ci;
+  const external = values.external! || ci || config.external === true;
+  const strict = values.strict! || ci || config.strict === true;
   const noCache = values["no-cache"]! || ci;
   const root = path.resolve(values.root ?? process.cwd());
 
@@ -97,8 +115,10 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     external,
     http: { ...defaultHttpOptions, timeoutMs, concurrency },
     cache,
+    ignorePaths: [...(config.ignorePaths ?? []), ...(values["ignore-path"] ?? [])],
+    ignoreUrls: [...(config.ignoreUrls ?? []), ...(values["ignore-url"] ?? [])],
   });
-  io.out(format(values.format as Format, summary, root));
+  io.out(format(fmt as Format, summary, root));
 
   const failing = summary.problems.some((p) => p.severity === "error" || strict);
   return failing ? 1 : 0;

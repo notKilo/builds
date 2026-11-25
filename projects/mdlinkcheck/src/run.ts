@@ -6,6 +6,7 @@ import { checkUrlsCached, UrlCache } from "./cache.ts";
 import type { HttpOptions } from "./http.ts";
 import type { Summary } from "./report.ts";
 import type { Problem } from "./types.ts";
+import { globToRegExp, matchesAny } from "./glob.ts";
 
 export interface RunOptions {
   paths: string[];
@@ -13,6 +14,10 @@ export interface RunOptions {
   external: boolean;
   http: HttpOptions;
   cache: UrlCache;
+  /** Globs, relative to `root`, of files to skip. */
+  ignorePaths?: string[];
+  /** URLs starting with any of these prefixes are not checked. */
+  ignoreUrls?: string[];
 }
 
 const SKIP_DIRS = new Set(["node_modules", ".git"]);
@@ -43,7 +48,9 @@ export async function collectFiles(paths: string[]): Promise<string[]> {
 }
 
 export async function run(opts: RunOptions): Promise<Summary> {
-  const files = await collectFiles(opts.paths);
+  const ignoreRes = (opts.ignorePaths ?? []).map(globToRegExp);
+  const ignoreUrls = opts.ignoreUrls ?? [];
+  const files = (await collectFiles(opts.paths)).filter((f) => !matchesAny(ignoreRes, path.relative(opts.root, f)));
   const index = new AnchorIndex();
   const problems: Problem[] = [];
   const urlLinks: { file: string; target: string; line: number; column: number }[] = [];
@@ -54,6 +61,7 @@ export async function run(opts: RunOptions): Promise<Summary> {
     for (const link of links) {
       linksChecked++;
       if (isHttp(link.target)) {
+        if (ignoreUrls.some((prefix) => link.target.startsWith(prefix))) continue;
         urlLinks.push({ file, target: link.target, line: link.line, column: link.column });
         continue;
       }
