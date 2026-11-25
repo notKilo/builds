@@ -24,6 +24,16 @@ pub enum Op {
     Jmp(usize),
     Jz(usize),
     Jnz(usize),
+    Call(usize),
+    Ret,
+    /// Push local slot `n` of the current frame.
+    LoadLocal(usize),
+    /// Pop into local slot `n` of the current frame.
+    StoreLocal(usize),
+    /// Pop an address, push the memory cell there.
+    Load,
+    /// Pop an address, then a value, and store the value at the address.
+    Store,
     Print,
     Halt,
 }
@@ -69,6 +79,12 @@ impl Op {
             Op::Jmp(_) => "jmp",
             Op::Jz(_) => "jz",
             Op::Jnz(_) => "jnz",
+            Op::Call(_) => "call",
+            Op::Ret => "ret",
+            Op::LoadLocal(_) => "lload",
+            Op::StoreLocal(_) => "lstore",
+            Op::Load => "load",
+            Op::Store => "store",
             Op::Print => "print",
             Op::Halt => "halt",
         }
@@ -94,14 +110,21 @@ impl Op {
             Op::Jmp(_) => 0x30,
             Op::Jz(_) => 0x31,
             Op::Jnz(_) => 0x32,
+            Op::Call(_) => 0x33,
+            Op::Ret => 0x34,
             Op::Print => 0x40,
+            Op::LoadLocal(_) => 0x50,
+            Op::StoreLocal(_) => 0x51,
+            Op::Load => 0x52,
+            Op::Store => 0x53,
         }
     }
 
     fn operand(&self) -> Option<i64> {
         match *self {
             Op::Push(v) => Some(v),
-            Op::Jmp(a) | Op::Jz(a) | Op::Jnz(a) => Some(a as i64),
+            Op::Jmp(a) | Op::Jz(a) | Op::Jnz(a) | Op::Call(a) => Some(a as i64),
+            Op::LoadLocal(n) | Op::StoreLocal(n) => Some(n as i64),
             _ => None,
         }
     }
@@ -141,7 +164,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Op>, DecodeError> {
     let mut i = 0;
     while i < bytes.len() {
         let code = bytes[i];
-        let needs_operand = matches!(code, 0x01 | 0x30..=0x32);
+        let needs_operand = matches!(code, 0x01 | 0x30..=0x33 | 0x50 | 0x51);
         let operand = if needs_operand {
             let raw = bytes
                 .get(i + 1..i + 9)
@@ -169,7 +192,13 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Op>, DecodeError> {
             0x30 => Op::Jmp(operand as usize),
             0x31 => Op::Jz(operand as usize),
             0x32 => Op::Jnz(operand as usize),
+            0x33 => Op::Call(operand as usize),
+            0x34 => Op::Ret,
             0x40 => Op::Print,
+            0x50 => Op::LoadLocal(operand as usize),
+            0x51 => Op::StoreLocal(operand as usize),
+            0x52 => Op::Load,
+            0x53 => Op::Store,
             byte => return Err(DecodeError::UnknownOpcode { byte, offset: i }),
         };
         i += op.size();
@@ -191,6 +220,12 @@ mod tests {
             Op::Jz(7),
             Op::Jmp(0),
             Op::Jnz(1),
+            Op::Call(3),
+            Op::Ret,
+            Op::LoadLocal(2),
+            Op::StoreLocal(0),
+            Op::Load,
+            Op::Store,
             Op::Print,
             Op::Halt,
         ];
@@ -201,7 +236,10 @@ mod tests {
     fn rejects_unknown_opcode() {
         assert_eq!(
             decode(&[0x00, 0xff]),
-            Err(DecodeError::UnknownOpcode { byte: 0xff, offset: 1 })
+            Err(DecodeError::UnknownOpcode {
+                byte: 0xff,
+                offset: 1
+            })
         );
     }
 

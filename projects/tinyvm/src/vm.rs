@@ -9,6 +9,10 @@ pub enum VmError {
     DivideByZero { pc: usize },
     BadJump { pc: usize, target: usize },
     Overflow { pc: usize },
+    BadLocal { pc: usize, slot: usize },
+    BadAddress { pc: usize, addr: i64 },
+    CallStackOverflow { pc: usize },
+    ReturnWithoutCall { pc: usize },
     StepLimit(u64),
 }
 
@@ -21,6 +25,12 @@ impl fmt::Display for VmError {
                 write!(f, "jump to invalid address {target} at pc {pc}")
             }
             VmError::Overflow { pc } => write!(f, "arithmetic overflow at pc {pc}"),
+            VmError::BadLocal { pc, slot } => write!(f, "invalid local slot {slot} at pc {pc}"),
+            VmError::BadAddress { pc, addr } => {
+                write!(f, "memory address {addr} out of range at pc {pc}")
+            }
+            VmError::CallStackOverflow { pc } => write!(f, "call stack overflow at pc {pc}"),
+            VmError::ReturnWithoutCall { pc } => write!(f, "ret with empty call stack at pc {pc}"),
             VmError::StepLimit(n) => write!(f, "step limit of {n} exceeded"),
         }
     }
@@ -34,17 +44,39 @@ pub enum Status {
     Halted,
 }
 
+pub const MEMORY_SIZE: usize = 1024;
+pub const MAX_LOCALS: usize = 256;
+pub const MAX_CALL_DEPTH: usize = 1024;
+
+/// A call frame: where to return to and the function's private locals.
+#[derive(Debug, Clone, Default)]
+pub struct Frame {
+    pub return_pc: usize,
+    pub locals: Vec<i64>,
+}
+
 pub struct Vm {
     program: Vec<Op>,
     pub stack: Vec<i64>,
     pub pc: usize,
     pub output: Vec<i64>,
     pub steps: u64,
+    pub memory: Vec<i64>,
+    /// `frames[0]` is the top-level frame; each `call` pushes another.
+    pub frames: Vec<Frame>,
 }
 
 impl Vm {
     pub fn new(program: Vec<Op>) -> Self {
-        Vm { program, stack: Vec::new(), pc: 0, output: Vec::new(), steps: 0 }
+        Vm {
+            program,
+            stack: Vec::new(),
+            pc: 0,
+            output: Vec::new(),
+            steps: 0,
+            memory: vec![0; MEMORY_SIZE],
+            frames: vec![Frame::default()],
+        }
     }
 
     pub fn program(&self) -> &[Op] {
@@ -52,7 +84,9 @@ impl Vm {
     }
 
     fn pop(&mut self) -> Result<i64, VmError> {
-        self.stack.pop().ok_or(VmError::StackUnderflow { pc: self.pc })
+        self.stack
+            .pop()
+            .ok_or(VmError::StackUnderflow { pc: self.pc })
     }
 
     fn binary(&mut self, f: impl Fn(i64, i64) -> Option<i64>) -> Result<(), VmError> {
@@ -65,10 +99,29 @@ impl Vm {
 
     fn jump(&mut self, target: usize) -> Result<(), VmError> {
         if target > self.program.len() {
-            return Err(VmError::BadJump { pc: self.pc, target });
+            return Err(VmError::BadJump {
+                pc: self.pc,
+                target,
+            });
         }
         self.pc = target;
         Ok(())
+    }
+
+    /// Reads a local slot; slots never written read as zero.
+    fn local(&self, slot: usize) -> Result<i64, VmError> {
+        if slot >= MAX_LOCALS {
+            return Err(VmError::BadLocal { pc: self.pc, slot });
+        }
+        let locals = &self.frames.last().expect("frame").locals;
+        Ok(locals.get(slot).copied().unwrap_or(0))
+    }
+
+    fn address(&self, addr: i64) -> Result<usize, VmError> {
+        usize::try_from(addr)
+            .ok()
+            .filter(|&a| a < self.memory.len())
+            .ok_or(VmError::BadAddress { pc: self.pc, addr })
     }
 
     /// Executes one instruction. Running off the end counts as halting.
@@ -84,7 +137,10 @@ impl Vm {
                 self.pop()?;
             }
             Op::Dup => {
-                let v = *self.stack.last().ok_or(VmError::StackUnderflow { pc: self.pc })?;
+                let v = *self
+                    .stack
+                    .last()
+                    .ok_or(VmError::StackUnderflow { pc: self.pc })?;
                 self.stack.push(v);
             }
             Op::Swap => {
@@ -102,12 +158,17 @@ impl Vm {
                 if b == 0 {
                     return Err(VmError::DivideByZero { pc: self.pc });
                 }
-                let r = if op == Op::Div { a.checked_div(b) } else { a.checked_rem(b) };
+                let r = if op == Op::Div {
+                    a.checked_div(b)
+                } else {
+                    a.checked_rem(b)
+                };
                 self.stack.push(r.ok_or(VmError::Overflow { pc: self.pc })?);
             }
             Op::Neg => {
                 let a = self.pop()?;
-                self.stack.push(a.checked_neg().ok_or(VmError::Overflow { pc: self.pc })?);
+                self.stack
+                    .push(a.checked_neg().ok_or(VmError::Overflow { pc: self.pc })?);
             }
             Op::Eq => self.binary(|a, b| Some((a == b) as i64))?,
             Op::Lt => self.binary(|a, b| Some((a < b) as i64))?,
@@ -126,6 +187,49 @@ impl Vm {
                     self.jump(t)?;
                     next = self.pc;
                 }
+            }
+            Op::Call(t) => {
+                if self.frames.len() > MAX_CALL_DEPTH {
+                    return Err(VmError::CallStackOverflow { pc: self.pc });
+                }
+                self.jump(t)?;
+                self.frames.push(Frame {
+                    return_pc: next,
+                    locals: Vec::new(),
+                });
+                next = self.pc;
+            }
+            Op::Ret => {
+                if self.frames.len() <= 1 {
+                    return Err(VmError::ReturnWithoutCall { pc: self.pc });
+                }
+                next = self.frames.pop().map_or(next, |f| f.return_pc);
+            }
+            Op::LoadLocal(slot) => {
+                let v = self.local(slot)?;
+                self.stack.push(v);
+            }
+            Op::StoreLocal(slot) => {
+                let v = self.pop()?;
+                if slot >= MAX_LOCALS {
+                    return Err(VmError::BadLocal { pc: self.pc, slot });
+                }
+                let locals = &mut self.frames.last_mut().expect("frame").locals;
+                if locals.len() <= slot {
+                    locals.resize(slot + 1, 0);
+                }
+                locals[slot] = v;
+            }
+            Op::Load => {
+                let addr = self.pop()?;
+                let i = self.address(addr)?;
+                self.stack.push(self.memory[i]);
+            }
+            Op::Store => {
+                let addr = self.pop()?;
+                let v = self.pop()?;
+                let i = self.address(addr)?;
+                self.memory[i] = v;
             }
             Op::Print => {
                 let v = self.pop()?;
@@ -172,7 +276,18 @@ mod tests {
 
     #[test]
     fn comparisons_and_not() {
-        let vm = run(vec![Push(1), Push(2), Lt, Print, Push(1), Push(2), Gt, Not, Print]).unwrap();
+        let vm = run(vec![
+            Push(1),
+            Push(2),
+            Lt,
+            Print,
+            Push(1),
+            Push(2),
+            Gt,
+            Not,
+            Print,
+        ])
+        .unwrap();
         assert_eq!(vm.output, vec![1, 1]);
     }
 
@@ -187,9 +302,12 @@ mod tests {
         // n = 3; while n != 0 { print n; n -= 1 }
         let prog = vec![
             Push(3),
-            Dup, Jz(9),
-            Dup, Print,
-            Push(1), Sub,
+            Dup,
+            Jz(9),
+            Dup,
+            Print,
+            Push(1),
+            Sub,
             Jmp(1),
             Halt,
             Pop,
@@ -201,15 +319,99 @@ mod tests {
 
     #[test]
     fn errors_report_pc() {
-        assert_eq!(run(vec![Add]).err(), Some(VmError::StackUnderflow { pc: 0 }));
+        assert_eq!(
+            run(vec![Add]).err(),
+            Some(VmError::StackUnderflow { pc: 0 })
+        );
         assert_eq!(
             run(vec![Push(1), Push(0), Div]).err(),
             Some(VmError::DivideByZero { pc: 2 })
         );
-        assert_eq!(run(vec![Jmp(99)]).err(), Some(VmError::BadJump { pc: 0, target: 99 }));
+        assert_eq!(
+            run(vec![Jmp(99)]).err(),
+            Some(VmError::BadJump { pc: 0, target: 99 })
+        );
         assert_eq!(
             run(vec![Push(i64::MAX), Push(1), Add]).err(),
             Some(VmError::Overflow { pc: 2 })
+        );
+    }
+
+    #[test]
+    fn call_and_ret_with_private_locals() {
+        // main stores 7 in local 0, calls f which sets its own local 0 to 99.
+        let prog = vec![
+            Push(7),
+            StoreLocal(0),
+            Call(7),
+            LoadLocal(0),
+            Print,
+            Halt,
+            Halt,
+            Push(99),
+            StoreLocal(0),
+            Ret,
+        ];
+        let vm = run(prog).unwrap();
+        assert_eq!(vm.output, vec![7]);
+        assert_eq!(vm.frames.len(), 1);
+    }
+
+    #[test]
+    fn recursion_computes_factorial() {
+        // fact(n): n on stack -> n! on stack
+        let prog = vec![
+            Push(5),
+            Call(4),
+            Print,
+            Halt,
+            StoreLocal(0),
+            LoadLocal(0),
+            Push(2),
+            Lt,
+            Jnz(17),
+            LoadLocal(0),
+            LoadLocal(0),
+            Push(1),
+            Sub,
+            Call(4),
+            Mul,
+            Ret,
+            Halt,
+            Push(1),
+            Ret,
+        ];
+        let vm = run(prog).unwrap();
+        assert_eq!(vm.output, vec![120]);
+    }
+
+    #[test]
+    fn memory_load_store() {
+        let vm = run(vec![Push(42), Push(10), Store, Push(10), Load, Print]).unwrap();
+        assert_eq!(vm.output, vec![42]);
+        assert_eq!(
+            run(vec![Push(1), Push(-1), Store]).err(),
+            Some(VmError::BadAddress { pc: 2, addr: -1 })
+        );
+        assert_eq!(
+            run(vec![Push(5000), Load]).err(),
+            Some(VmError::BadAddress { pc: 1, addr: 5000 })
+        );
+    }
+
+    #[test]
+    fn call_errors() {
+        assert_eq!(
+            run(vec![Ret]).err(),
+            Some(VmError::ReturnWithoutCall { pc: 0 })
+        );
+        assert_eq!(
+            run(vec![Call(0)]).err(),
+            Some(VmError::CallStackOverflow { pc: 0 })
+        );
+        assert_eq!(
+            run(vec![LoadLocal(300)]).err(),
+            Some(VmError::BadLocal { pc: 0, slot: 300 })
         );
     }
 
