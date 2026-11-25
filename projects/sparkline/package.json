@@ -1,0 +1,16 @@
+{
+  "name": "sparkline",
+  "version": "0.1.0",
+  "description": "Tiny metrics collector that serves SVG sparklines",
+  "type": "module",
+  "bin": { "sparkline": "src/cli.ts" },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": { "node": ">=22.18" },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
