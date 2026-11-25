@@ -79,7 +79,7 @@ def diff_tables(old: Table, new: Table, options: DiffOptions) -> DiffResult:
             if not values_equal(row[c], new_rows[key][c], options)
         ]
         if changes:
-            result.changed.append(RowChange(key, changes))
+            result.changed.append(RowChange(tuple(row[k] for k in options.keys), changes))
         else:
             result.unchanged += 1
     result.added = [row for key, row in new_rows.items() if key not in old_rows]
@@ -89,7 +89,7 @@ def diff_tables(old: Table, new: Table, options: DiffOptions) -> DiffResult:
 def _index(table: Table, keys: list[str], label: str) -> dict[Key, dict[str, Any]]:
     index: dict[Key, dict[str, Any]] = {}
     for row in table.rows:
-        key = tuple(row[k] for k in keys)
+        key = tuple(_norm_key(row[k]) for k in keys)
         if key in index:
             raise DiffError(f"duplicate key {key!r} in {label} table")
         index[key] = row
@@ -125,3 +125,11 @@ def _as_number(value: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def _norm_key(value: Any) -> Any:
+    """Make CSV '1', JSON 1 and '1.0' land on the same key."""
+    number = _as_number(value)
+    if number is None:
+        return value
+    return int(number) if number.is_integer() else number

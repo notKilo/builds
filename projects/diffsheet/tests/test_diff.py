@@ -98,3 +98,10 @@ def test_none_vs_empty_string_differs():
     old = table(["id", "v"], ("1", None))
     new = table(["id", "v"], ("1", ""))
     assert run(old, new).has_differences
+
+
+def test_numeric_keys_match_across_types():
+    old = table(["id", "v"], ("1", "a"))
+    new = table(["id", "v"], (1, "a"))
+    r = run(old, new)
+    assert not r.has_differences and r.unchanged == 1
