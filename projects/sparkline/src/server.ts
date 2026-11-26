@@ -1,5 +1,6 @@
 import http from "node:http";
 import { Store } from "./store.ts";
+import { dashboardHtml } from "./dashboard.ts";
 import { aggregate, isAggregation, parseWindow } from "./query.ts";
 import { renderSparkline, defaultSpark, type Style } from "./svg.ts";
 
@@ -61,6 +62,9 @@ export function createServer(store: Store, now: () => number = Date.now): http.S
         }
         for (const p of points) store.record(p.name, p.value, p.at ?? now());
         return json(202, { accepted: points.length });
+      }
+      if (req.method === "GET" && url.pathname === "/") {
+        return send(200, "text/html; charset=utf-8", dashboardHtml);
       }
       if (req.method === "GET" && url.pathname === "/api/series") {
         return json(200, store.names());

@@ -76,3 +76,12 @@ test("series query endpoint aggregates within a window", async () => {
     assert.equal((await fetch(`${base}/api/series/missing`)).status, 404);
   });
 });
+
+test("dashboard is served at /", async () => {
+  await withServer(async (base) => {
+    const r = await fetch(`${base}/`);
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get("content-type") ?? "", /text\/html/);
+    assert.match(await r.text(), /\/api\/series/);
+  });
+});
