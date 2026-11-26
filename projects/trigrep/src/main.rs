@@ -5,7 +5,7 @@ use trigrep::regex::Regex;
 use trigrep::search;
 
 const USAGE: &str = "usage:
-  trigrep index [DIR]                         build DIR/.trigrep.idx
+  trigrep index [DIR]                         build or incrementally update DIR/.trigrep.idx
   trigrep search [-i] [-F] [-d DIR] PATTERN   search using the index (-i ignore case, -F literal)";
 
 fn main() -> ExitCode {
@@ -23,8 +23,16 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
     match args.first().map(String::as_str) {
         Some("index") => {
             let root = PathBuf::from(args.get(1).map_or(".", String::as_str));
-            let idx = search::build(&root).map_err(|e| e.to_string())?;
-            search::save(&root, &idx).map_err(|e| e.to_string())?;
+            let err = |e: std::io::Error| e.to_string();
+            let idx = match search::load(&root) {
+                Ok(mut idx) => {
+                    let st = search::update(&root, &mut idx).map_err(err)?;
+                    println!("updated: +{} -{} ={}", st.added, st.removed, st.unchanged);
+                    idx
+                }
+                Err(_) => search::build(&root).map_err(err)?,
+            };
+            search::save(&root, &idx).map_err(err)?;
             println!("indexed {} files, {} trigrams", idx.files.len(), idx.postings.len());
             Ok(ExitCode::SUCCESS)
         }

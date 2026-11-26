@@ -46,6 +46,32 @@ fn add_file(idx: &mut Index, root: &Path, entry: FileEntry) {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct UpdateStats {
+    pub added: usize,
+    pub removed: usize,
+    pub unchanged: usize,
+}
+
+/// Bring `idx` up to date with the tree: re-read only files whose size or mtime changed.
+pub fn update(root: &Path, idx: &mut Index) -> io::Result<UpdateStats> {
+    let current = walk(root)?;
+    let by_path: std::collections::HashMap<&str, &FileEntry> =
+        current.iter().map(|e| (e.rel_path.as_str(), e)).collect();
+    let keep: Vec<bool> = idx.files.iter().map(|f| by_path.get(f.rel_path.as_str()) == Some(&f)).collect();
+    let unchanged = keep.iter().filter(|&&k| k).count();
+    let removed = idx.files.len() - unchanged;
+    idx.retain_files(&keep);
+    let known: std::collections::HashSet<String> = idx.files.iter().map(|f| f.rel_path.clone()).collect();
+    let before = idx.files.len();
+    for entry in current {
+        if !known.contains(&entry.rel_path) {
+            add_file(idx, root, entry);
+        }
+    }
+    Ok(UpdateStats { added: idx.files.len() - before, removed, unchanged })
+}
+
 pub fn save(root: &Path, idx: &Index) -> io::Result<()> {
     let tmp = root.join(format!("{INDEX_FILE}.tmp"));
     fs::write(&tmp, idx.to_bytes())?;
@@ -127,6 +153,26 @@ mod tests {
         let (hits, stats) = search(&root, &idx, &Regex::literal("42", false)).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(stats.candidates, 2);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn update_picks_up_changes() {
+        let root = fixture("upd");
+        let mut idx = build(&root).unwrap();
+        fs::write(root.join("src/c.rs"), "fn gamma() {}\n").unwrap();
+        fs::remove_file(root.join("src/b.rs")).unwrap();
+        fs::write(root.join("src/a.rs"), "fn alpha_renamed_function() {}\n").unwrap();
+        let st = update(&root, &mut idx).unwrap();
+        assert_eq!(st.removed, 2, "deleted b.rs and modified a.rs are dropped");
+        assert_eq!(st.added, 2, "c.rs is new and a.rs is re-read");
+        let (hits, _) = search(&root, &idx, &Regex::literal("renamed", false)).unwrap();
+        assert_eq!(hits.len(), 1);
+        let (hits, _) = search(&root, &idx, &Regex::literal("beta", false)).unwrap();
+        assert!(hits.is_empty());
+        let (hits, _) = search(&root, &idx, &Regex::literal("gamma", false)).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(update(&root, &mut idx).unwrap(), UpdateStats { added: 0, removed: 0, unchanged: 2 });
         fs::remove_dir_all(&root).unwrap();
     }
 

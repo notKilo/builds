@@ -35,6 +35,30 @@ impl Index {
         id
     }
 
+    /// Drop the files whose `keep` flag is false and renumber the rest.
+    pub fn retain_files(&mut self, keep: &[bool]) {
+        let mut remap = vec![u32::MAX; self.files.len()];
+        let mut next = 0u32;
+        for (old, &k) in keep.iter().enumerate() {
+            if k {
+                remap[old] = next;
+                next += 1;
+            }
+        }
+        let mut i = 0;
+        self.files.retain(|_| {
+            i += 1;
+            keep[i - 1]
+        });
+        self.postings.retain(|_, ids| {
+            ids.retain(|&id| remap[id as usize] != u32::MAX);
+            for id in ids.iter_mut() {
+                *id = remap[*id as usize];
+            }
+            !ids.is_empty()
+        });
+    }
+
     /// Files containing every trigram in `required` (all files when empty).
     pub fn candidates(&self, required: &BTreeSet<Trigram>) -> Vec<u32> {
         let mut lists: Vec<&Vec<u32>> = Vec::new();
@@ -200,6 +224,16 @@ mod tests {
         assert_eq!(idx.candidates(&trigrams(b"world")), vec![0]);
         assert_eq!(idx.candidates(&trigrams(b"zzz")), Vec::<u32>::new());
         assert_eq!(idx.candidates(&BTreeSet::new()), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn retain_files_renumbers() {
+        let mut idx = sample();
+        idx.retain_files(&[true, false, true]);
+        assert_eq!(idx.files.len(), 2);
+        assert_eq!(idx.files[1].rel_path, "c.txt");
+        assert_eq!(idx.candidates(&trigrams(b"hello")), vec![0]);
+        assert_eq!(idx.candidates(&trigrams(b"nothing")), vec![1]);
     }
 
     #[test]
