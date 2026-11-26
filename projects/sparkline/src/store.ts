@@ -54,4 +54,24 @@ export class Store {
   has(name: string): boolean {
     return this.series.has(name);
   }
+
+  /** Serializable copy of all series. */
+  snapshot(): Snapshot {
+    return { version: 1, opts: this.opts, series: Object.fromEntries(this.series) };
+  }
+
+  /** Replace contents with a snapshot; extra points beyond capacity are trimmed from the front. */
+  restore(snap: Snapshot): void {
+    if (snap.version !== 1) throw new Error(`unsupported snapshot version: ${snap.version}`);
+    this.series.clear();
+    for (const [name, pts] of Object.entries(snap.series)) {
+      this.series.set(name, pts.slice(-this.opts.capacity));
+    }
+  }
+}
+
+export interface Snapshot {
+  version: 1;
+  opts: StoreOptions;
+  series: Record<string, Point[]>;
 }
