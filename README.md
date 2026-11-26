@@ -18,3 +18,4 @@ Ongoing software projects, one per folder.
 | [envdiff](projects/envdiff) | Done | Go CLI comparing .env/JSON configs across environments: missing, drifted and placeholder keys, secret masking, template check |
 | [trigrep](projects/trigrep) | Done | Rust trigram-indexed code search CLI with incremental indexing, regex support, context lines and stats |
 | [jsonshape](projects/jsonshape) | Done | TypeScript CLI inferring schemas from JSON samples, emitting TypeScript or JSON Schema, with breaking-change diff |
+| [todofix](projects/todofix) | Done | Python CLI that finds TODO/FIXME comments and reports their age via git blame, with grouping, JSON/markdown output and CI budgets |
