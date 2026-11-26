@@ -1,0 +1,19 @@
+name: pingboard
+on:
+  push:
+    paths: ['projects/pingboard/**', '.github/workflows/pingboard.yml']
+  pull_request:
+    paths: ['projects/pingboard/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/pingboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - run: go vet ./...
+      - run: go test -race ./...
