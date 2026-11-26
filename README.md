@@ -14,3 +14,4 @@ Ongoing software projects, one per folder.
 | [gitstats](projects/gitstats) | Done | Go CLI mining git history for churn, hotspots, bus factor and authors, with text, JSON and HTML output |
 | [tinyvm](projects/tinyvm) | Done | Rust stack-based bytecode VM with assembler, disassembler, binary format and step debugger |
 | [diffsheet](projects/diffsheet) | Done | Python semantic diff for CSV/JSON tables keyed by columns, with text, markdown, JSON and HTML output |
+| [sparkline](projects/sparkline) | Done | TypeScript tiny metrics collector with ring-buffer storage, SVG sparkline endpoints, dashboard and CLI |
