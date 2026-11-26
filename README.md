@@ -16,3 +16,4 @@ Ongoing software projects, one per folder.
 | [diffsheet](projects/diffsheet) | Done | Python semantic diff for CSV/JSON tables keyed by columns, with text, markdown, JSON and HTML output |
 | [sparkline](projects/sparkline) | Done | TypeScript tiny metrics collector with ring-buffer storage, SVG sparkline endpoints, dashboard and CLI |
 | [envdiff](projects/envdiff) | Done | Go CLI comparing .env/JSON configs across environments: missing, drifted and placeholder keys, secret masking, template check |
+| [trigrep](projects/trigrep) | Done | Rust trigram-indexed code search CLI with incremental indexing, regex support, context lines and stats |
