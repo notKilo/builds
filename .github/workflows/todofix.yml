@@ -1,0 +1,22 @@
+name: todofix
+on:
+  push:
+    paths: ['projects/todofix/**', '.github/workflows/todofix.yml']
+  pull_request:
+    paths: ['projects/todofix/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/todofix
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: git config --global user.email ci@example.com && git config --global user.name ci
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
