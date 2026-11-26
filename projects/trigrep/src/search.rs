@@ -72,6 +72,29 @@ pub fn update(root: &Path, idx: &mut Index) -> io::Result<UpdateStats> {
     Ok(UpdateStats { added: idx.files.len() - before, removed, unchanged })
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct IndexStats {
+    pub files: usize,
+    pub trigrams: usize,
+    pub postings: usize,
+    pub index_bytes: usize,
+    /// Most common trigrams: (trigram, number of files containing it), descending.
+    pub top: Vec<([u8; 3], usize)>,
+}
+
+pub fn index_stats(idx: &Index, top_n: usize) -> IndexStats {
+    let mut top: Vec<([u8; 3], usize)> = idx.postings.iter().map(|(t, p)| (*t, p.len())).collect();
+    top.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    top.truncate(top_n);
+    IndexStats {
+        files: idx.files.len(),
+        trigrams: idx.postings.len(),
+        postings: idx.postings.values().map(Vec::len).sum(),
+        index_bytes: idx.to_bytes().len(),
+        top,
+    }
+}
+
 pub fn save(root: &Path, idx: &Index) -> io::Result<()> {
     let tmp = root.join(format!("{INDEX_FILE}.tmp"));
     fs::write(&tmp, idx.to_bytes())?;
@@ -120,6 +143,19 @@ mod tests {
         fs::write(p.join("src/b.rs"), "// Alpha mentioned\nlet x = 42;\n").unwrap();
         fs::write(p.join("blob.bin"), b"alpha\0\0binary").unwrap();
         p
+    }
+
+    #[test]
+    fn index_stats_counts_and_ranks_trigrams() {
+        let root = fixture("stats");
+        let idx = build(&root).unwrap();
+        let st = index_stats(&idx, 3);
+        assert_eq!(st.files, idx.files.len());
+        assert_eq!(st.trigrams, idx.postings.len());
+        assert!(st.postings >= st.trigrams);
+        assert!(st.top.len() <= 3);
+        assert!(st.top.windows(2).all(|w| w[0].1 >= w[1].1));
+        assert_eq!(st.index_bytes, idx.to_bytes().len());
     }
 
     #[test]
