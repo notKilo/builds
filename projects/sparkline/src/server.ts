@@ -1,5 +1,6 @@
 import http from "node:http";
 import { Store } from "./store.ts";
+import { aggregate, isAggregation, parseWindow } from "./query.ts";
 import { renderSparkline, defaultSpark, type Style } from "./svg.ts";
 
 export interface ParsedPoint {
@@ -63,6 +64,17 @@ export function createServer(store: Store, now: () => number = Date.now): http.S
       }
       if (req.method === "GET" && url.pathname === "/api/series") {
         return json(200, store.names());
+      }
+      const api = /^\/api\/series\/([^/]+)$/.exec(url.pathname);
+      if (req.method === "GET" && api) {
+        const name = decodeURIComponent(api[1]);
+        if (!store.has(name)) return json(404, { error: "unknown series" });
+        const agg = url.searchParams.get("agg") ?? "avg";
+        if (!isAggregation(agg)) throw new Error(`unknown aggregation: ${agg}`);
+        const w = url.searchParams.get("window");
+        const from = w ? now() - parseWindow(w) : -Infinity;
+        const points = store.points(name, from);
+        return json(200, { name, agg, value: aggregate(points, agg), buckets: points.length, points });
       }
       const spark = /^\/spark\/([^/]+)\.svg$/.exec(url.pathname);
       if (req.method === "GET" && spark) {

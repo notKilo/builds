@@ -55,3 +55,24 @@ test("window parameter drops old points", async () => {
     assert.match(text, /<circle/); // single remaining point
   });
 });
+
+test("series query endpoint aggregates within a window", async () => {
+  await withServer(async (base) => {
+    await fetch(`${base}/ingest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify([
+        { name: "lat", value: 100, at: 1000 },
+        { name: "lat", value: 10, at: 8000 },
+        { name: "lat", value: 30, at: 9000 },
+      ]),
+    });
+    const all = await (await fetch(`${base}/api/series/lat?agg=max`)).json();
+    assert.equal(all.value, 100);
+    const recent = await (await fetch(`${base}/api/series/lat?agg=avg&window=5s`)).json();
+    assert.equal(recent.value, 20);
+    assert.equal(recent.buckets, 2);
+    assert.equal((await fetch(`${base}/api/series/lat?agg=nope`)).status, 400);
+    assert.equal((await fetch(`${base}/api/series/missing`)).status, 404);
+  });
+});
