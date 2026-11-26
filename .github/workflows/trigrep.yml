@@ -1,0 +1,19 @@
+name: trigrep
+on:
+  push:
+    paths: ['projects/trigrep/**', '.github/workflows/trigrep.yml']
+  pull_request:
+    paths: ['projects/trigrep/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/trigrep
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
