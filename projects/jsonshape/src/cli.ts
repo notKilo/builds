@@ -5,8 +5,11 @@ import { inferAll } from "./shape.ts";
 import { parseSamples } from "./input.ts";
 import { emitTypeScript } from "./emit-ts.ts";
 import { emitJsonSchema } from "./emit-schema.ts";
+import { diffShapes, formatChanges } from "./diff.ts";
+import type { Shape } from "./shape.ts";
 
 const USAGE = `Usage: jsonshape [options] [file...]
+       jsonshape diff [options] <old> <new>
 
 Infer a schema from JSON samples. Reads stdin when no files are given.
 Each file may hold one JSON document or NDJSON; a top-level array in a
@@ -19,9 +22,47 @@ Options:
       --interface           Emit an interface for the root object (ts only)
       --each                Treat elements of top-level arrays as samples
   -h, --help                Show this help
+
+Diff: compare the shapes inferred from two files and list changes, marking
+those that could break consumers of the old shape.
+  --json                    Print changes as JSON
+  --fail-on-breaking        Exit with status 3 when breaking changes exist
 `;
 
+function loadShape(sources: string[], each: boolean): Shape | null {
+  let samples: unknown[] = [];
+  for (const src of sources) {
+    const text = src === "-" ? readFileSync(0, "utf8") : readFileSync(src, "utf8");
+    samples.push(...parseSamples(text, src === "-" ? "stdin" : src));
+  }
+  if (each) samples = samples.flatMap((s) => (Array.isArray(s) ? s : [s]));
+  return inferAll(samples);
+}
+
+function runDiff(argv: string[]): number {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      each: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
+      "fail-on-breaking": { type: "boolean", default: false },
+    },
+  });
+  if (positionals.length !== 2) {
+    process.stderr.write("jsonshape: diff needs exactly two files: <old> <new>\n");
+    return 2;
+  }
+  const changes = diffShapes(
+    loadShape([positionals[0]!], values.each),
+    loadShape([positionals[1]!], values.each),
+  );
+  process.stdout.write(values.json ? JSON.stringify(changes, null, 2) + "\n" : formatChanges(changes));
+  return values["fail-on-breaking"] && changes.some((c) => c.breaking) ? 3 : 0;
+}
+
 function main(argv: string[]): number {
+  if (argv[0] === "diff") return runDiff(argv.slice(1));
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -42,15 +83,7 @@ function main(argv: string[]): number {
     return 2;
   }
 
-  let samples: unknown[] = [];
-  const sources = positionals.length ? positionals : ["-"];
-  for (const src of sources) {
-    const text = src === "-" ? readFileSync(0, "utf8") : readFileSync(src, "utf8");
-    samples.push(...parseSamples(text, src === "-" ? "stdin" : src));
-  }
-  if (values.each) samples = samples.flatMap((s) => (Array.isArray(s) ? s : [s]));
-
-  const shape = inferAll(samples);
+  const shape = loadShape(positionals.length ? positionals : ["-"], values.each);
   process.stdout.write(
     values.format === "ts"
       ? emitTypeScript(shape, { name: values.name, interfaces: values.interface })

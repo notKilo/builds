@@ -37,3 +37,34 @@ test("cli rejects unknown formats and bad JSON", () => {
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /jsonshape:/);
 });
+
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+function twoFiles(a: unknown, b: unknown): [string, string] {
+  const dir = mkdtempSync(join(tmpdir(), "jsonshape-"));
+  writeFileSync(join(dir, "a.json"), JSON.stringify(a));
+  writeFileSync(join(dir, "b.json"), JSON.stringify(b));
+  return [join(dir, "a.json"), join(dir, "b.json")];
+}
+
+test("cli diff prints changes and exits 0 by default", () => {
+  const [a, b] = twoFiles({ id: 1, name: "x" }, { id: 1 });
+  const r = run(["diff", a, b]);
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /BREAKING\s+\$\.name/);
+});
+
+test("cli diff --fail-on-breaking exits 3, --json is parseable", () => {
+  const [a, b] = twoFiles({ id: 1, name: "x" }, { id: 1 });
+  assert.equal(run(["diff", "--fail-on-breaking", a, b]).status, 3);
+  const changes = JSON.parse(run(["diff", "--json", a, b]).stdout);
+  assert.equal(changes[0].kind, "prop-removed");
+  const [c, d] = twoFiles({ id: 1 }, { id: 1, extra: true });
+  assert.equal(run(["diff", "--fail-on-breaking", c, d]).status, 0);
+});
+
+test("cli diff requires two files", () => {
+  assert.equal(run(["diff", "only-one.json"]).status, 2);
+});
